@@ -1,6 +1,10 @@
-export type UserRole = 'author' | 'reader';
+export type UserRole = 'author' | 'reader' | 'admin';
+
+export type ActiveMode = 'author' | 'reader' | 'admin';
 
 export type ShelfStatus = 'want_to_read' | 'reading' | 'finished';
+
+export const ADMIN_EMAIL = 'mushahidsyed1994@gmail.com';
 
 export interface User {
   id: string;
@@ -13,7 +17,12 @@ export interface User {
   socialUrl?: string;
   penName?: string;
   isMasonCarter?: boolean;
+  isAdmin?: boolean;
+  isAuthor?: boolean;
+  activeMode?: ActiveMode;
   googleUid?: string;
+  followingUserIds?: string[]; // IDs of users this person follows
+  followerCount?: number;
   createdAt: string;
 }
 
@@ -66,6 +75,9 @@ export interface ShelfItem {
   userId: string;
   bookId: string;
   status: ShelfStatus;
+  progressPage?: number; // Which page reader is on
+  progressStatus?: string; // Max 200 words reader progress thoughts
+  progressUpdatedAt?: string;
   updatedAt: string;
 }
 

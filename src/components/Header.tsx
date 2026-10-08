@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User } from '../types';
+import { User, ActiveMode, ADMIN_EMAIL } from '../types';
 import { PWAInstallButton } from './PWAInstallButton';
 import {
   BookOpen,
@@ -12,19 +12,22 @@ import {
   X,
   LogOut,
   ChevronDown,
-  UserCheck,
+  ShieldAlert,
+  Sparkles,
+  ArrowRightLeft,
 } from 'lucide-react';
 
 interface HeaderProps {
   currentUser: User | null;
-  activeTab: 'explore' | 'books' | 'lists' | 'author-profile' | 'author-dashboard' | 'reader-dashboard' | 'authors';
+  activeTab: 'explore' | 'books' | 'lists' | 'author-profile' | 'author-dashboard' | 'reader-dashboard' | 'authors' | 'admin-panel';
   selectedAuthorId: string | null;
   onNavigate: (tab: HeaderProps['activeTab'], authorId?: string | null) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onOpenGoogleSignIn: () => void;
   onLogout: () => void;
-  onOpenAuthSwitcher: () => void;
+  onOpenAuthorUpgrade: () => void;
+  onSwitchMode: (mode: ActiveMode) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -36,12 +39,15 @@ export const Header: React.FC<HeaderProps> = ({
   onSearchChange,
   onOpenGoogleSignIn,
   onLogout,
-  onOpenAuthSwitcher,
+  onOpenAuthorUpgrade,
+  onSwitchMode,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   const isMasonProfileActive = activeTab === 'author-profile' && selectedAuthorId === 'mason-carter';
+  const isAdmin = currentUser?.isAdmin || (currentUser?.email && currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+  const isAuthor = currentUser?.isAuthor || isAdmin;
 
   const handleMasonCarterClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -67,28 +73,25 @@ export const Header: React.FC<HeaderProps> = ({
                   Indie Picks
                 </span>
                 <span className="text-[10px] tracking-wider uppercase text-[#8A7D6F] font-semibold block">
-                  Free Author Discovery
+                  Independent Literature
                 </span>
               </div>
             </button>
 
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center space-x-1 pl-2">
-              {/* Mason Carter prominently in top menu as requested */}
+              {/* Mason Carter simple navigation item */}
               <button
                 onClick={handleMasonCarterClick}
-                className={`relative px-3.5 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
                   isMasonProfileActive
-                    ? 'bg-[#EAE2D2] text-[#2C2621] shadow-xs'
-                    : 'text-[#5C4F42] hover:text-[#1F1A15] hover:bg-[#F2ECE0]'
+                    ? 'bg-[#EAE2D2] text-[#2C2621] font-semibold'
+                    : 'text-[#6B5E51] hover:text-[#2C2621] hover:bg-[#F2ECE0]'
                 }`}
-                title="View Mason Carter's author account, books, and reader Q&A"
+                title="Mason Carter's author profile and books"
               >
                 <Feather className="w-3.5 h-3.5 text-[#B2741E]" />
-                <span className="font-serif text-sm font-bold">Mason Carter</span>
-                <span className="text-[10px] bg-[#D99B3B]/20 text-[#8C5D17] px-1.5 py-0.2 rounded-xs font-medium">
-                  Author
-                </span>
+                <span>Mason Carter</span>
               </button>
 
               <button
@@ -100,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Compass className="w-3.5 h-3.5" />
-                <span>Explore Picks</span>
+                <span>Explore</span>
               </button>
 
               <button
@@ -112,7 +115,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <BookOpen className="w-3.5 h-3.5" />
-                <span>All Books</span>
+                <span>Catalogue</span>
               </button>
 
               <button
@@ -136,7 +139,7 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Feather className="w-3.5 h-3.5" />
-                <span>Indie Authors</span>
+                <span>Authors</span>
               </button>
             </nav>
           </div>
@@ -151,7 +154,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search titles, authors, genres..."
+                placeholder="Search books, authors, genres..."
                 className="w-full rounded-lg border border-[#DDD5C5] bg-[#F5F1E8]/70 py-1.5 pl-9 pr-3 text-xs text-[#2C2621] placeholder-[#948779] transition focus:border-[#B2741E] focus:bg-[#FAF8F5] focus:outline-hidden"
               />
               {searchQuery && (
@@ -176,25 +179,36 @@ export const Header: React.FC<HeaderProps> = ({
             {currentUser ? (
               <div className="relative">
                 <div className="flex items-center gap-2">
-                  {currentUser.role === 'author' ? (
+                  {/* Mode-specific Quick Action Button */}
+                  {isAdmin ? (
+                    <button
+                      onClick={() => onNavigate('admin-panel')}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-800 hover:bg-red-100 transition shadow-xs ${
+                        activeTab === 'admin-panel' ? 'ring-2 ring-red-600' : ''
+                      }`}
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5 text-red-600" />
+                      <span className="hidden sm:inline">Admin Panel</span>
+                      <span className="sm:hidden">Admin</span>
+                    </button>
+                  ) : isAuthor ? (
                     <button
                       onClick={() => onNavigate('author-dashboard')}
-                      className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-[#D5B876] bg-[#F8F2E2] px-3 py-1.5 text-xs font-semibold text-[#66430F] hover:bg-[#F2E8D0] transition shadow-xs ${
+                      className={`inline-flex items-center gap-1.5 rounded-lg border border-[#D5B876] bg-[#F8F2E2] px-2.5 py-1.5 text-xs font-semibold text-[#66430F] hover:bg-[#F2E8D0] transition shadow-xs ${
                         activeTab === 'author-dashboard' ? 'ring-2 ring-[#B2741E]' : ''
                       }`}
                     >
                       <PlusCircle className="w-3.5 h-3.5 text-[#B2741E]" />
-                      <span>Author Studio</span>
+                      <span className="hidden sm:inline">Author Studio</span>
+                      <span className="sm:hidden">Studio</span>
                     </button>
                   ) : (
                     <button
-                      onClick={() => onNavigate('reader-dashboard')}
-                      className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-[#D8CFBF] bg-[#FAF8F5] px-3 py-1.5 text-xs font-medium text-[#2C2621] hover:bg-[#F0EBE0] transition shadow-xs ${
-                        activeTab === 'reader-dashboard' ? 'ring-2 ring-[#8C7E70]' : ''
-                      }`}
+                      onClick={onOpenAuthorUpgrade}
+                      className="inline-flex items-center gap-1 rounded-lg border border-[#D5C9B3] bg-white px-2 py-1 text-[11px] font-medium text-[#5C4F42] hover:bg-[#FAF8F5]"
                     >
-                      <Bookmark className="w-3.5 h-3.5 text-[#B2741E]" />
-                      <span>My Shelves</span>
+                      <Feather className="w-3 h-3 text-[#B2741E]" />
+                      <span>Become an Author</span>
                     </button>
                   )}
 
@@ -214,7 +228,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                 {/* Dropdown Menu */}
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-[#DDD5C5] bg-[#FAF8F5] p-2 text-xs shadow-xl z-50">
+                  <div className="absolute right-0 mt-2 w-64 rounded-xl border border-[#DDD5C5] bg-[#FAF8F5] p-2 text-xs shadow-xl z-50">
                     <div className="px-3 py-2 border-b border-[#EAE2D2] mb-1">
                       <span className="font-semibold text-[#2C2621] block truncate">
                         {currentUser.name}
@@ -222,58 +236,111 @@ export const Header: React.FC<HeaderProps> = ({
                       <span className="text-[11px] text-[#7A6F64] block truncate">
                         {currentUser.email}
                       </span>
-                      <span className="mt-1 inline-block text-[10px] font-semibold text-[#8C5D17] bg-[#EFE8D8] px-1.5 py-0.2 rounded-xs">
-                        {currentUser.role === 'author' ? 'Indie Author' : 'Reader'}
-                      </span>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span
+                          className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded-xs ${
+                            isAdmin
+                              ? 'bg-red-100 text-red-800'
+                              : isAuthor
+                              ? 'bg-amber-100 text-amber-900'
+                              : 'bg-stone-100 text-stone-700'
+                          }`}
+                        >
+                          {isAdmin ? 'Admin' : isAuthor ? 'Author' : 'Reader'}
+                        </span>
+                        {currentUser.isMasonCarter && (
+                          <span className="text-[10px] text-[#8C5D17] font-semibold">
+                            (Mason Carter)
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    {currentUser.role === 'author' ? (
+                    {/* ROLE & MODE SWITCHING OPTIONS */}
+                    <div className="py-1 border-b border-[#EAE2D2] space-y-1">
+                      <span className="px-3 text-[10px] uppercase font-bold text-[#8C7E70] block">
+                        Switch Workspace Mode
+                      </span>
+
+                      {/* Admin Mode (Exclusive for mushahidsyed1994@gmail.com) */}
+                      {isAdmin && (
+                        <button
+                          onClick={() => {
+                            onSwitchMode('admin');
+                            onNavigate('admin-panel');
+                            setUserDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 rounded-md flex items-center gap-2 ${
+                            activeTab === 'admin-panel'
+                              ? 'bg-red-100 font-bold text-red-900'
+                              : 'hover:bg-[#F2ECE0] text-red-800'
+                          }`}
+                        >
+                          <ShieldAlert className="w-3.5 h-3.5 text-red-600" />
+                          <span>Admin Moderation Panel</span>
+                        </button>
+                      )}
+
+                      {/* Author Mode */}
+                      {isAuthor ? (
+                        <button
+                          onClick={() => {
+                            onSwitchMode('author');
+                            onNavigate('author-dashboard');
+                            setUserDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 rounded-md flex items-center gap-2 ${
+                            activeTab === 'author-dashboard'
+                              ? 'bg-[#EAE2D2] font-bold text-[#2C2621]'
+                              : 'hover:bg-[#F2ECE0] text-[#2C2621]'
+                          }`}
+                        >
+                          <PlusCircle className="w-3.5 h-3.5 text-[#B2741E]" />
+                          <span>Author Studio (Enlist Books)</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            onOpenAuthorUpgrade();
+                            setUserDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-1.5 rounded-md hover:bg-amber-50 text-[#8C5D17] flex items-center gap-2 font-medium"
+                        >
+                          <Feather className="w-3.5 h-3.5 text-[#B2741E]" />
+                          <span>Opt-in as Author</span>
+                        </button>
+                      )}
+
+                      {/* Reader Mode (Available to both Admin, Authors, and Readers) */}
                       <button
                         onClick={() => {
-                          onNavigate('author-dashboard');
-                          setUserDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-1.5 rounded-md hover:bg-[#F2ECE0] text-[#2C2621] flex items-center gap-2"
-                      >
-                        <PlusCircle className="w-3.5 h-3.5 text-[#B2741E]" />
-                        <span>Author Studio & Books</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
+                          onSwitchMode('reader');
                           onNavigate('reader-dashboard');
                           setUserDropdownOpen(false);
                         }}
-                        className="w-full text-left px-3 py-1.5 rounded-md hover:bg-[#F2ECE0] text-[#2C2621] flex items-center gap-2"
+                        className={`w-full text-left px-3 py-1.5 rounded-md flex items-center gap-2 ${
+                          activeTab === 'reader-dashboard'
+                            ? 'bg-[#EAE2D2] font-bold text-[#2C2621]'
+                            : 'hover:bg-[#F2ECE0] text-[#2C2621]'
+                        }`}
                       >
                         <Bookmark className="w-3.5 h-3.5 text-[#B2741E]" />
-                        <span>My Reading Shelves</span>
+                        <span>Reader Mode (My Shelves)</span>
                       </button>
-                    )}
+                    </div>
 
-                    {currentUser.role === 'author' && (
+                    {isAuthor && (
                       <button
                         onClick={() => {
                           onNavigate('author-profile', currentUser.id);
                           setUserDropdownOpen(false);
                         }}
-                        className="w-full text-left px-3 py-1.5 rounded-md hover:bg-[#F2ECE0] text-[#2C2621] flex items-center gap-2"
+                        className="w-full text-left px-3 py-1.5 rounded-md hover:bg-[#F2ECE0] text-[#2C2621] flex items-center gap-2 mt-1"
                       >
                         <Feather className="w-3.5 h-3.5 text-[#B2741E]" />
                         <span>View Public Author Page</span>
                       </button>
                     )}
-
-                    <button
-                      onClick={() => {
-                        onOpenAuthSwitcher();
-                        setUserDropdownOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-1.5 rounded-md hover:bg-[#F2ECE0] text-[#5C4F42] flex items-center gap-2"
-                    >
-                      <UserCheck className="w-3.5 h-3.5 text-[#8C7E70]" />
-                      <span>Switch / Test Personas</span>
-                    </button>
 
                     <button
                       onClick={() => {
@@ -294,7 +361,6 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={onOpenGoogleSignIn}
                 className="inline-flex items-center gap-2 rounded-xl border border-[#D5C9B3] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#2C2621] hover:bg-[#F7F3EA] transition shadow-xs"
               >
-                {/* Google "G" Icon */}
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
@@ -346,10 +412,10 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={handleMasonCarterClick}
-              className="flex items-center gap-2 p-2.5 rounded-lg bg-[#EFE8D8] text-[#2C2621] font-serif font-bold text-sm text-left"
+              className="flex items-center gap-2 p-2.5 rounded-lg bg-[#EFE8D8] text-[#2C2621] font-serif font-bold text-sm text-left col-span-2"
             >
               <Feather className="w-4 h-4 text-[#B2741E]" />
-              <span>Mason Carter</span>
+              <span>Mason Carter (Featured Author)</span>
             </button>
 
             <button
@@ -360,7 +426,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-2 p-2.5 rounded-lg border border-[#E2D7C2] text-[#3E362F] text-xs font-medium text-left"
             >
               <Compass className="w-4 h-4 text-[#B2741E]" />
-              <span>Explore Picks</span>
+              <span>Explore</span>
             </button>
 
             <button
@@ -371,7 +437,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-2 p-2.5 rounded-lg border border-[#E2D7C2] text-[#3E362F] text-xs font-medium text-left"
             >
               <BookOpen className="w-4 h-4 text-[#B2741E]" />
-              <span>All Books</span>
+              <span>Catalogue</span>
             </button>
 
             <button
@@ -390,11 +456,24 @@ export const Header: React.FC<HeaderProps> = ({
                 onNavigate('authors');
                 setMobileMenuOpen(false);
               }}
-              className="flex items-center gap-2 p-2.5 rounded-lg border border-[#E2D7C2] text-[#3E362F] text-xs font-medium text-left col-span-2"
+              className="flex items-center gap-2 p-2.5 rounded-lg border border-[#E2D7C2] text-[#3E362F] text-xs font-medium text-left"
             >
               <Feather className="w-4 h-4 text-[#B2741E]" />
-              <span>Browse Indie Authors</span>
+              <span>Authors</span>
             </button>
+
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  onNavigate('admin-panel');
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center gap-2 p-2.5 rounded-lg bg-red-100 text-red-900 text-xs font-bold text-left col-span-2"
+              >
+                <ShieldAlert className="w-4 h-4 text-red-600" />
+                <span>Admin Moderation Panel</span>
+              </button>
+            )}
           </div>
 
           <div className="pt-3 border-t border-[#E8E1D3] flex items-center justify-between">
@@ -405,7 +484,12 @@ export const Header: React.FC<HeaderProps> = ({
                   alt={currentUser.name}
                   className="w-7 h-7 rounded-full object-cover"
                 />
-                <span className="text-xs font-semibold">{currentUser.name}</span>
+                <div>
+                  <span className="text-xs font-semibold block">{currentUser.name}</span>
+                  <span className="text-[10px] text-[#7A6F64] capitalize">
+                    {isAdmin ? 'Admin' : isAuthor ? 'Author' : 'Reader'}
+                  </span>
+                </div>
               </div>
             ) : (
               <button

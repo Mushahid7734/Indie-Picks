@@ -191,38 +191,58 @@ export function getPickOfTheYear(
 }
 
 /**
- * Automatically 10 books picked every week by JavaScript as featured books
+ * Automatically 10 to 15 books picked as featured books, randomly/dynamically rotated
+ * with deterministic hashing per day/week so readers get fresh rotating featured indie picks
  */
 export function getFeatured10BooksOfWeek(
   books: Book[],
   reviews: Review[],
   shelfItems: ShelfItem[],
-  date = new Date()
+  date = new Date(),
+  count = 12
 ): Book[] {
   if (!books.length) return [];
-  if (books.length <= 10) return [...books];
+  if (books.length <= count) return [...books];
 
   const { week, year } = getISOWeek(date);
-  const weekSeed = hashString(`week-${year}-${week}`);
+  // Incorporate day of year hash so there is engaging dynamic rotation
+  const dayOfYear = Math.floor(
+    (date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24
+  );
+  const rotationSeed = hashString(`featured-rot-${year}-${week}-${dayOfYear}`);
 
-  // Sort by base quality & author diversity
+  // Base scoring by popularity & engagement
   const scored = books.map((b) => {
     const stats = calculateBookStats(b, reviews, shelfItems);
     return { book: b, score: stats.popularityScore };
   });
 
-  scored.sort((a, b) => b.score - a.score);
-
-  // Deterministic shuffle rotation based on weekSeed
+  // Fisher-Yates shuffle seeded with dynamic rotation seed
   const shuffled = [...scored];
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = (weekSeed + i * 17) % (i + 1);
+    const j = (rotationSeed + i * 31 + (i % 7)) % (i + 1);
     const temp = shuffled[i];
     shuffled[i] = shuffled[j];
     shuffled[j] = temp;
   }
 
-  return shuffled.slice(0, 10).map((s) => s.book);
+  return shuffled.slice(0, count).map((s) => s.book);
+}
+
+/**
+ * Randomly pick featured books from available catalogue
+ */
+export function getRandomFeaturedBooks(books: Book[], count = 8): Book[] {
+  if (books.length <= count) return [...books];
+  const copy = [...books];
+  // Simple random shuffle
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = copy[i];
+    copy[i] = copy[j];
+    copy[j] = temp;
+  }
+  return copy.slice(0, count);
 }
 
 /**

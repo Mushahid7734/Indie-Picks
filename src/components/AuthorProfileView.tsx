@@ -25,6 +25,7 @@ interface AuthorProfileViewProps {
   onShelfChange: (bookId: string, status: ShelfStatus | 'remove') => void;
   onAskQuestion: (authorId: string, questionText: string, bookId?: string) => void;
   onOpenDashboard: () => void;
+  onToggleFollowUser?: (targetUserId: string) => void;
 }
 
 export const AuthorProfileView: React.FC<AuthorProfileViewProps> = ({
@@ -38,6 +39,7 @@ export const AuthorProfileView: React.FC<AuthorProfileViewProps> = ({
   onShelfChange,
   onAskQuestion,
   onOpenDashboard,
+  onToggleFollowUser,
 }) => {
   const [questionText, setQuestionText] = useState('');
   const [selectedBookForQ, setSelectedBookForQ] = useState<string>('');
@@ -111,6 +113,29 @@ export const AuthorProfileView: React.FC<AuthorProfileViewProps> = ({
 
               {/* Action Buttons */}
               <div className="flex items-center justify-center md:justify-end gap-2">
+                {!isSelf && onToggleFollowUser && currentUser && (
+                  <button
+                    onClick={() => onToggleFollowUser(author.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition shadow-xs ${
+                      (currentUser.followingUserIds || []).includes(author.id)
+                        ? 'border border-[#B2741E] bg-[#FAF5E8] text-[#8C5D17] hover:bg-[#F2E8D0]'
+                        : 'bg-[#2C2621] text-[#FAF8F5] hover:bg-[#3E362F]'
+                    }`}
+                  >
+                    {(currentUser.followingUserIds || []).includes(author.id) ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-[#B2741E]" />
+                        <span>Following</span>
+                      </>
+                    ) : (
+                      <>
+                        <Feather className="w-3.5 h-3.5 text-[#D99B3B]" />
+                        <span>Follow Author</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
                 <button
                   onClick={handleShare}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-[#DDD5C5] bg-[#FAF8F5] px-3.5 py-2 text-xs font-medium text-[#4D4135] hover:bg-white transition"
@@ -146,8 +171,12 @@ export const AuthorProfileView: React.FC<AuthorProfileViewProps> = ({
               </p>
             </div>
 
-            {/* External Links & Stats (Zero-Pill) */}
+            {/* External Links & Stats (Zero-Pill with Followers Count) */}
             <div className="mt-5 flex items-center justify-center md:justify-start gap-4 flex-wrap text-xs text-[#6B5E51]">
+              <span className="font-semibold text-[#8C5D17]">
+                {author.followerCount || 0} Followers
+              </span>
+              <span aria-hidden="true">·</span>
               <span className="font-semibold text-[#2C2621]">
                 {authorBooks.length} {authorBooks.length === 1 ? 'Book' : 'Books'} Published
               </span>

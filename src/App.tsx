@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { storage } from './lib/storage';
-import { User, Book, Review, ShelfItem, ShelfStatus, Question, CuratedList } from './types';
+import { User, Book, Review, ShelfItem, ShelfStatus, Question, CuratedList, ActiveMode, UserRole } from './types';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { ExploreTab } from './components/ExploreTab';
@@ -10,6 +10,8 @@ import { AuthorProfileView } from './components/AuthorProfileView';
 import { AuthorDashboard } from './components/AuthorDashboard';
 import { ReaderDashboard } from './components/ReaderDashboard';
 import { CuratedListsView } from './components/CuratedListsView';
+import { AdminPanel } from './components/AdminPanel';
+import { BecomeAuthorModal } from './components/BecomeAuthorModal';
 import { BookDetailModal } from './components/BookDetailModal';
 import { FirebaseModal } from './components/FirebaseModal';
 import { AuthModal } from './components/AuthModal';
@@ -22,7 +24,8 @@ type AppTab =
   | 'author-profile'
   | 'author-dashboard'
   | 'reader-dashboard'
-  | 'authors';
+  | 'authors'
+  | 'admin-panel';
 
 export default function App() {
   // Application Data States
@@ -42,6 +45,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState<boolean>(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isBecomeAuthorModalOpen, setIsBecomeAuthorModalOpen] = useState<boolean>(false);
 
   // Sync state from storage
   const syncStateFromStorage = () => {
@@ -174,7 +178,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF8F5] text-[#2C2621]">
-      {/* Navigation Header - Clean, No database buttons */}
+      {/* Navigation Header */}
       <Header
         currentUser={currentUser}
         activeTab={activeTab}
@@ -189,7 +193,8 @@ export default function App() {
         }}
         onOpenGoogleSignIn={() => setIsAuthModalOpen(true)}
         onLogout={() => storage.logout()}
-        onOpenAuthSwitcher={() => setIsAuthModalOpen(true)}
+        onOpenAuthorUpgrade={() => setIsBecomeAuthorModalOpen(true)}
+        onSwitchMode={(mode: ActiveMode) => storage.switchActiveMode(mode)}
       />
 
       {/* Main Content Router */}
@@ -201,10 +206,15 @@ export default function App() {
             shelves={shelves}
             curatedLists={curatedLists}
             currentUser={currentUser || allUsers[0]}
+            featuredAuthor={allUsers.find((u) => u.isMasonCarter) || allUsers[0]}
             onSelectBook={handleSelectBook}
             onSelectAuthor={handleSelectAuthor}
             onShelfChange={handleShelfChange}
             onToggleLikeList={handleToggleLikeList}
+            onOpenAuthorDashboard={() => {
+              if (!currentUser) setIsAuthModalOpen(true);
+              else handleNavigate('author-dashboard');
+            }}
           />
         )}
 
@@ -248,7 +258,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'author-dashboard' && currentUser && currentUser.role === 'author' && (
+        {activeTab === 'author-dashboard' && currentUser && (currentUser.isAuthor || currentUser.isAdmin) && (
           <AuthorDashboard
             currentUser={currentUser}
             books={books}
@@ -295,12 +305,35 @@ export default function App() {
             }}
           />
         )}
+
+        {activeTab === 'admin-panel' && currentUser && currentUser.isAdmin && (
+          <AdminPanel
+            currentUser={currentUser}
+            books={books}
+            users={allUsers}
+            reviews={reviews}
+            questions={questions}
+            lists={curatedLists}
+            onDeleteBook={(bookId) => storage.adminDeleteBook(bookId)}
+            onDeleteUser={(userId) => storage.adminDeleteUser(userId)}
+            onUpdateUserRole={(userId, newRole) => storage.adminUpdateUserRole(userId, newRole)}
+            onDeleteReview={(reviewId) => storage.adminDeleteReview(reviewId)}
+            onDeleteQuestion={(questionId) => storage.adminDeleteQuestion(questionId)}
+            onDeleteList={(listId) => storage.adminDeleteCuratedList(listId)}
+            onCleanReset={() => storage.resetToCleanState()}
+            onViewBook={handleSelectBook}
+          />
+        )}
       </main>
 
-      {/* Footer with Mason Carter link & discreet owner setup */}
+      {/* Footer */}
       <Footer
         onNavigateMasonCarter={() => handleNavigate('author-profile', 'mason-carter')}
         onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
+        onNavigateExplore={() => handleNavigate('explore')}
+        onNavigateCatalogue={() => handleNavigate('books')}
+        onNavigateLists={() => handleNavigate('lists')}
+        onNavigateAuthors={() => handleNavigate('authors')}
       />
 
       {/* Book Detail Modal */}
@@ -322,7 +355,7 @@ export default function App() {
         />
       )}
 
-      {/* Firebase Realtime Connection & GitHub Hosting Modal (Discreet / Admin) */}
+      {/* Firebase Realtime Connection Modal */}
       <FirebaseModal
         isOpen={isFirebaseModalOpen}
         onClose={() => setIsFirebaseModalOpen(false)}
@@ -339,6 +372,17 @@ export default function App() {
         onSelectUser={handleSelectUser}
         onRegisterUser={handleRegisterUser}
         onGoogleLoginSuccess={handleGoogleLoginSuccess}
+      />
+
+      {/* Reader to Author Upgrade Modal */}
+      <BecomeAuthorModal
+        isOpen={isBecomeAuthorModalOpen}
+        onClose={() => setIsBecomeAuthorModalOpen(false)}
+        onUpgrade={(penName, bio, websiteUrl) => {
+          storage.upgradeReaderToAuthor(penName, bio, websiteUrl);
+          handleNavigate('author-dashboard');
+        }}
+        currentName={currentUser?.name || ''}
       />
 
       {/* Offline Status Toast */}

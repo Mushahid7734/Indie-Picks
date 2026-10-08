@@ -72,8 +72,8 @@ export const FirebaseModal: React.FC<FirebaseModalProps> = ({
   };
 
   const handleResetSeed = () => {
-    if (confirm('Reset catalogue to original Indie Picks seed data (Mason Carter books, reviews, shelves)?')) {
-      storage.resetToInitialSeed();
+    if (confirm('Reset catalogue and clear all test data? Mason Carter will remain intact.')) {
+      storage.resetToCleanState();
       setResetSuccess(true);
       onSyncReload();
       setTimeout(() => setResetSuccess(false), 3000);

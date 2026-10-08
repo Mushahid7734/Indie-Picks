@@ -6,6 +6,9 @@ import {
   CuratedList,
   ShelfItem,
   ShelfStatus,
+  ActiveMode,
+  UserRole,
+  ADMIN_EMAIL,
 } from '../types';
 import {
   INITIAL_AUTHORS,
@@ -21,6 +24,7 @@ import {
   initFirebaseService,
   getRealtimeDb,
 } from './firebase';
+import { syncAllToIndexedDB, loadAllFromIndexedDB } from './indexedDB';
 import { ref, onValue, set } from 'firebase/database';
 
 const KEYS = {
@@ -44,7 +48,6 @@ export function isValidImageUrl(url: string): boolean {
   if (!url || typeof url !== 'string') return false;
   const trimmed = url.trim();
   if (trimmed.startsWith('data:image')) {
-    // Prohibit embedded base64 data to protect free database storage limits
     return false;
   }
   return /^https?:\/\/.+/i.test(trimmed);
@@ -66,16 +69,60 @@ class StorageEngine {
     this.init();
   }
 
-  private init() {
+  private async init() {
     if (typeof window === 'undefined') return;
 
-    // 1. Load Local
-    this.users = this.loadLocal(KEYS.USERS, [...INITIAL_AUTHORS, ...INITIAL_READERS]);
-    this.books = this.loadLocal(KEYS.BOOKS, INITIAL_BOOKS);
-    this.reviews = this.loadLocal(KEYS.REVIEWS, INITIAL_REVIEWS);
-    this.questions = this.loadLocal(KEYS.QUESTIONS, INITIAL_QUESTIONS);
-    this.shelves = this.loadLocal(KEYS.SHELVES, INITIAL_SHELF_ITEMS);
-    this.lists = this.loadLocal(KEYS.LISTS, INITIAL_CURATED_LISTS);
+    // 1. Try loading from IndexedDB first for fast offline sync
+    try {
+      const idbData = await loadAllFromIndexedDB();
+      if (idbData && idbData.users.length > 0) {
+        this.users = idbData.users;
+        this.books = idbData.books;
+        this.reviews = idbData.reviews;
+        this.questions = idbData.questions;
+        this.shelves = idbData.shelves;
+        this.lists = idbData.lists;
+      } else {
+        this.reloadFromLocalStorage();
+      }
+    } catch {
+      this.reloadFromLocalStorage();
+    }
+
+    // Ensure Mason Carter exists with admin email
+    this.ensureMasonCarter();
+
+    // Clean out any old mock artifacts if they exist from development
+    const hasTestArtifacts =
+      this.users.some((u) => u.id === 'reader-clara' || u.id === 'author-elena' || u.name === 'Elena Vance' || u.name === 'Marcus Thorne') ||
+      this.books.some((b) => b.id.startsWith('book-1') || b.id.startsWith('book-2') || b.authorName === 'Elena Vance');
+
+    if (hasTestArtifacts) {
+      this.users = this.users.filter(
+        (u) => u.id === 'mason-carter' || u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase() || u.googleUid
+      );
+      this.books = this.books.filter(
+        (b) => !b.id.startsWith('book-1') && !b.id.startsWith('book-2') && b.authorName !== 'Elena Vance' && b.authorName !== 'Marcus Thorne'
+      );
+      this.reviews = [];
+      this.questions = [];
+      this.shelves = [];
+      this.lists = [];
+      this.saveLocal(KEYS.USERS, this.users);
+      this.saveLocal(KEYS.BOOKS, this.books);
+      this.saveLocal(KEYS.REVIEWS, this.reviews);
+      this.saveLocal(KEYS.QUESTIONS, this.questions);
+      this.saveLocal(KEYS.SHELVES, this.shelves);
+      this.saveLocal(KEYS.LISTS, this.lists);
+      syncAllToIndexedDB({
+        books: this.books,
+        users: this.users,
+        reviews: this.reviews,
+        questions: this.questions,
+        shelves: this.shelves,
+        lists: this.lists,
+      });
+    }
 
     const savedUserId = localStorage.getItem(KEYS.CURRENT_USER_ID);
     if (savedUserId && this.users.some((u) => u.id === savedUserId)) {
@@ -99,8 +146,45 @@ class StorageEngine {
       // BroadcastChannel unsupported fallback
     }
 
-    // 3. Connect Firebase if configured
+    // 3. Connect Firebase Realtime Database
     this.connectFirebase();
+  }
+
+  private reloadFromLocalStorage() {
+    this.users = this.loadLocal(KEYS.USERS, [...INITIAL_AUTHORS, ...INITIAL_READERS]);
+    this.books = this.loadLocal(KEYS.BOOKS, INITIAL_BOOKS);
+    this.reviews = this.loadLocal(KEYS.REVIEWS, INITIAL_REVIEWS);
+    this.questions = this.loadLocal(KEYS.QUESTIONS, INITIAL_QUESTIONS);
+    this.shelves = this.loadLocal(KEYS.SHELVES, INITIAL_SHELF_ITEMS);
+    this.lists = this.loadLocal(KEYS.LISTS, INITIAL_CURATED_LISTS);
+  }
+
+  private ensureMasonCarter() {
+    const mason = this.users.find((u) => u.id === 'mason-carter' || u.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+    if (mason) {
+      mason.email = ADMIN_EMAIL;
+      mason.isAdmin = true;
+      mason.isAuthor = true;
+      mason.isMasonCarter = true;
+      mason.role = 'admin';
+      if (!mason.activeMode) mason.activeMode = 'author';
+    } else {
+      this.users.unshift({
+        id: 'mason-carter',
+        name: 'Mason Carter',
+        email: ADMIN_EMAIL,
+        role: 'admin',
+        isAdmin: true,
+        isAuthor: true,
+        activeMode: 'author',
+        isMasonCarter: true,
+        penName: 'Mason Carter',
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
+        bio: 'Independent author and founder of Indie Picks. Writing stories and creating a clean, free home for independent voices and avid readers.',
+        websiteUrl: 'https://mushahid7734.github.io',
+        createdAt: new Date().toISOString(),
+      });
+    }
   }
 
   private loadLocal<T>(key: string, fallback: T): T {
@@ -124,12 +208,8 @@ class StorageEngine {
   }
 
   private reloadAllLocal() {
-    this.users = this.loadLocal(KEYS.USERS, this.users);
-    this.books = this.loadLocal(KEYS.BOOKS, this.books);
-    this.reviews = this.loadLocal(KEYS.REVIEWS, this.reviews);
-    this.questions = this.loadLocal(KEYS.QUESTIONS, this.questions);
-    this.shelves = this.loadLocal(KEYS.SHELVES, this.shelves);
-    this.lists = this.loadLocal(KEYS.LISTS, this.lists);
+    this.reloadFromLocalStorage();
+    this.ensureMasonCarter();
   }
 
   public connectFirebase() {
@@ -143,7 +223,6 @@ class StorageEngine {
     if (success && db) {
       this.isFirebaseConnected = true;
 
-      // Subscribe to Realtime Database collections
       try {
         const rootRef = ref(db, 'indie_picks');
         onValue(rootRef, (snapshot) => {
@@ -156,7 +235,9 @@ class StorageEngine {
             if (val.shelves) this.shelves = Object.values(val.shelves);
             if (val.users) this.users = Object.values(val.users);
 
-            // Save to localStorage as local cache
+            this.ensureMasonCarter();
+
+            // Cache in LocalStorage & IndexedDB
             this.saveLocal(KEYS.BOOKS, this.books);
             this.saveLocal(KEYS.REVIEWS, this.reviews);
             this.saveLocal(KEYS.QUESTIONS, this.questions);
@@ -164,9 +245,18 @@ class StorageEngine {
             this.saveLocal(KEYS.SHELVES, this.shelves);
             this.saveLocal(KEYS.USERS, this.users);
 
+            syncAllToIndexedDB({
+              books: this.books,
+              users: this.users,
+              reviews: this.reviews,
+              questions: this.questions,
+              shelves: this.shelves,
+              lists: this.lists,
+            });
+
             this.notify();
           } else {
-            // Initial seed push for newly created Firebase database
+            // First time Firebase sync
             set(rootRef, {
               books: this.books,
               reviews: this.reviews,
@@ -174,7 +264,7 @@ class StorageEngine {
               lists: this.lists,
               shelves: this.shelves,
               users: this.users,
-            }).catch((e) => console.warn('Initial Firebase seed push:', e));
+            }).catch((e) => console.warn('Firebase initial sync notice', e));
           }
         });
       } catch (err) {
@@ -199,7 +289,7 @@ class StorageEngine {
   }
 
   private persistAndNotify(syncNode?: string, syncData?: unknown) {
-    // 1. Save local
+    // 1. Save to LocalStorage
     this.saveLocal(KEYS.USERS, this.users);
     this.saveLocal(KEYS.BOOKS, this.books);
     this.saveLocal(KEYS.REVIEWS, this.reviews);
@@ -207,14 +297,24 @@ class StorageEngine {
     this.saveLocal(KEYS.SHELVES, this.shelves);
     this.saveLocal(KEYS.LISTS, this.lists);
 
-    // 2. Broadcast to other tabs
+    // 2. Sync to IndexedDB for complete offline integrity
+    syncAllToIndexedDB({
+      books: this.books,
+      users: this.users,
+      reviews: this.reviews,
+      questions: this.questions,
+      shelves: this.shelves,
+      lists: this.lists,
+    });
+
+    // 3. Broadcast to other open browser tabs
     try {
       this.broadcastChannel?.postMessage({ type: 'REFRESH_DATA' });
     } catch {
       // Ignore
     }
 
-    // 3. Sync to Firebase if applicable
+    // 4. Sync to Firebase
     if (syncNode && syncData !== undefined) {
       this.syncToFirebase(syncNode, syncData);
     }
@@ -268,7 +368,7 @@ class StorageEngine {
     return this.isFirebaseConnected;
   }
 
-  // User Actions
+  // User & Mode Switching
   public setCurrentUser(userId: string | null) {
     this.currentUserId = userId;
     if (userId) {
@@ -285,6 +385,41 @@ class StorageEngine {
     this.notify();
   }
 
+  public switchActiveMode(mode: ActiveMode) {
+    const user = this.getCurrentUser();
+    if (!user) return;
+
+    if (mode === 'admin' && !user.isAdmin) {
+      throw new Error('Only the site administrator can access Admin Mode.');
+    }
+
+    if (mode === 'author' && !user.isAuthor && !user.isAdmin) {
+      throw new Error('Please register an author profile before switching to Author Mode.');
+    }
+
+    user.activeMode = mode;
+    this.persistAndNotify('users', this.users);
+  }
+
+  public upgradeReaderToAuthor(penName: string, bio: string, websiteUrl?: string) {
+    const user = this.getCurrentUser();
+    if (!user) throw new Error('Please sign in first.');
+
+    const words = countWords(bio);
+    if (words > 150) {
+      throw new Error(`Author bio cannot exceed 150 words (currently ${words} words).`);
+    }
+
+    user.isAuthor = true;
+    user.role = 'author';
+    user.penName = penName.trim() || user.name;
+    user.bio = bio.trim();
+    user.websiteUrl = websiteUrl?.trim();
+    user.activeMode = 'author';
+
+    this.persistAndNotify('users', this.users);
+  }
+
   public loginWithGoogleData(googleUser: {
     uid: string;
     email: string;
@@ -293,7 +428,9 @@ class StorageEngine {
   }): { matchedUser: User | null } {
     const emailNorm = (googleUser.email || '').toLowerCase().trim();
     
-    // Look up by googleUid or email
+    // Check if this is the admin (Mason Carter)
+    const isAdmin = emailNorm === ADMIN_EMAIL.toLowerCase();
+
     let matched = this.users.find(
       (u) =>
         (u.googleUid && u.googleUid === googleUser.uid) ||
@@ -301,11 +438,13 @@ class StorageEngine {
     );
 
     if (matched) {
-      if (!matched.googleUid) {
-        matched.googleUid = googleUser.uid;
-      }
-      if (googleUser.photoURL && !matched.avatarUrl) {
-        matched.avatarUrl = googleUser.photoURL;
+      matched.googleUid = googleUser.uid;
+      if (isAdmin) {
+        matched.isAdmin = true;
+        matched.isAuthor = true;
+        matched.isMasonCarter = true;
+        matched.role = 'admin';
+        matched.name = 'Mason Carter';
       }
       this.currentUserId = matched.id;
       localStorage.setItem(KEYS.CURRENT_USER_ID, matched.id);
@@ -313,19 +452,35 @@ class StorageEngine {
       return { matchedUser: matched };
     }
 
+    // If logging in with the Admin email for the first time
+    if (isAdmin) {
+      const mason = this.users.find((u) => u.id === 'mason-carter');
+      if (mason) {
+        mason.googleUid = googleUser.uid;
+        this.currentUserId = mason.id;
+        localStorage.setItem(KEYS.CURRENT_USER_ID, mason.id);
+        this.persistAndNotify('users', this.users);
+        return { matchedUser: mason };
+      }
+    }
+
     return { matchedUser: null };
   }
 
   public registerUser(user: Omit<User, 'id' | 'createdAt'>): User {
-    // Enforce max 150 words bio
     const words = countWords(user.bio);
     if (words > 150) {
-      throw new Error(`Author bio cannot exceed 150 words (currently ${words} words).`);
+      throw new Error(`Bio cannot exceed 150 words (currently ${words} words).`);
     }
+
+    const isAdmin = user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
     const newUser: User = {
       ...user,
       id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      isAdmin,
+      isAuthor: user.role === 'author' || isAdmin,
+      activeMode: user.role === 'author' ? 'author' : 'reader',
       createdAt: new Date().toISOString(),
     };
 
@@ -343,7 +498,7 @@ class StorageEngine {
     if (updates.bio !== undefined) {
       const words = countWords(updates.bio);
       if (words > 150) {
-        throw new Error(`Author bio cannot exceed 150 words (currently ${words} words).`);
+        throw new Error(`Bio cannot exceed 150 words (currently ${words} words).`);
       }
     }
 
@@ -356,8 +511,8 @@ class StorageEngine {
     bookData: Omit<Book, 'id' | 'createdAt' | 'viewsCount' | 'authorName' | 'authorAvatar'>
   ): Book {
     const currentUser = this.getCurrentUser();
-    if (!currentUser || currentUser.role !== 'author') {
-      throw new Error('Only registered authors can add books.');
+    if (!currentUser || (!currentUser.isAuthor && !currentUser.isAdmin)) {
+      throw new Error('Only registered authors can enlist books.');
     }
 
     if (!isValidImageUrl(bookData.coverUrl)) {
@@ -368,7 +523,7 @@ class StorageEngine {
       ...bookData,
       id: `book-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       authorId: currentUser.id,
-      authorName: currentUser.name,
+      authorName: currentUser.penName || currentUser.name,
       authorAvatar: currentUser.avatarUrl,
       viewsCount: 1,
       createdAt: new Date().toISOString(),
@@ -444,6 +599,16 @@ class StorageEngine {
       return;
     }
 
+    if (status === 'reading') {
+      // Validate: Max 3 books allowed in reading status at one time
+      const currentReadingCount = this.shelves.filter(
+        (s) => s.userId === currentUser.id && s.status === 'reading' && s.bookId !== bookId
+      ).length;
+      if (currentReadingCount >= 3) {
+        throw new Error('A maximum of 3 books in reading progress are allowed simultaneously.');
+      }
+    }
+
     if (existingIndex !== -1) {
       this.shelves[existingIndex].status = status;
       this.shelves[existingIndex].updatedAt = new Date().toISOString();
@@ -458,6 +623,96 @@ class StorageEngine {
     }
 
     this.persistAndNotify('shelves', this.shelves);
+  }
+
+  /**
+   * Update reading progress for a book:
+   * - One status note & page number per book (updating the existing entry)
+   * - Max 200 words allowed for reading progress notes
+   */
+  public updateReadingProgress(bookId: string, progressPage: number, progressStatus: string) {
+    const currentUser = this.getCurrentUser();
+    if (!currentUser) throw new Error('Please sign in with Google to update reading progress.');
+
+    const wordCount = countWords(progressStatus);
+    if (wordCount > 200) {
+      throw new Error(`Reading progress note cannot exceed 200 words (currently ${wordCount} words).`);
+    }
+
+    let existingIndex = this.shelves.findIndex(
+      (s) => s.userId === currentUser.id && s.bookId === bookId
+    );
+
+    const now = new Date().toISOString();
+
+    if (existingIndex !== -1) {
+      // If moving or confirming status
+      if (this.shelves[existingIndex].status !== 'reading') {
+        // Check reading books limit
+        const currentReadingCount = this.shelves.filter(
+          (s) => s.userId === currentUser.id && s.status === 'reading' && s.bookId !== bookId
+        ).length;
+        if (currentReadingCount >= 3) {
+          throw new Error('A maximum of 3 books in reading progress are allowed simultaneously.');
+        }
+        this.shelves[existingIndex].status = 'reading';
+      }
+      this.shelves[existingIndex].progressPage = Math.max(0, Math.floor(progressPage));
+      this.shelves[existingIndex].progressStatus = progressStatus.trim();
+      this.shelves[existingIndex].progressUpdatedAt = now;
+      this.shelves[existingIndex].updatedAt = now;
+    } else {
+      // Check reading limit
+      const currentReadingCount = this.shelves.filter(
+        (s) => s.userId === currentUser.id && s.status === 'reading'
+      ).length;
+      if (currentReadingCount >= 3) {
+        throw new Error('A maximum of 3 books in reading progress are allowed simultaneously.');
+      }
+
+      this.shelves.push({
+        id: `shelf-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        userId: currentUser.id,
+        bookId,
+        status: 'reading',
+        progressPage: Math.max(0, Math.floor(progressPage)),
+        progressStatus: progressStatus.trim(),
+        progressUpdatedAt: now,
+        updatedAt: now,
+      });
+    }
+
+    this.persistAndNotify('shelves', this.shelves);
+  }
+
+  /**
+   * Follow / Unfollow another user (author or reader)
+   */
+  public toggleFollowUser(targetUserId: string) {
+    const currentUser = this.getCurrentUser();
+    if (!currentUser) throw new Error('Please sign in with Google to follow users.');
+    if (currentUser.id === targetUserId) {
+      throw new Error('You cannot follow yourself.');
+    }
+
+    const currentFollowing = currentUser.followingUserIds || [];
+    const isFollowing = currentFollowing.includes(targetUserId);
+
+    // Update current user's following list
+    if (isFollowing) {
+      currentUser.followingUserIds = currentFollowing.filter((id) => id !== targetUserId);
+    } else {
+      currentUser.followingUserIds = [...currentFollowing, targetUserId];
+    }
+
+    // Update target user's followerCount
+    const targetUser = this.users.find((u) => u.id === targetUserId);
+    if (targetUser) {
+      const delta = isFollowing ? -1 : 1;
+      targetUser.followerCount = Math.max(0, (targetUser.followerCount || 0) + delta);
+    }
+
+    this.persistAndNotify('users', this.users);
   }
 
   // Questions Actions
@@ -532,14 +787,65 @@ class StorageEngine {
     this.persistAndNotify('lists', this.lists);
   }
 
-  // Reset to default seed data
-  public resetToInitialSeed() {
-    this.users = [...INITIAL_AUTHORS, ...INITIAL_READERS];
-    this.books = [...INITIAL_BOOKS];
-    this.reviews = [...INITIAL_REVIEWS];
-    this.questions = [...INITIAL_QUESTIONS];
-    this.shelves = [...INITIAL_SHELF_ITEMS];
-    this.lists = [...INITIAL_CURATED_LISTS];
+  // --- ADMIN MODERATION PANEL METHODS ---
+  public verifyAdmin() {
+    const currentUser = this.getCurrentUser();
+    if (!currentUser || !currentUser.isAdmin) {
+      throw new Error('Access denied: Administrator privileges required.');
+    }
+  }
+
+  public adminDeleteBook(bookId: string) {
+    this.verifyAdmin();
+    this.deleteBook(bookId);
+  }
+
+  public adminDeleteUser(userId: string) {
+    this.verifyAdmin();
+    if (userId === 'mason-carter') throw new Error('Cannot delete primary administrator.');
+    this.users = this.users.filter((u) => u.id !== userId);
+    this.books = this.books.filter((b) => b.authorId !== userId);
+    this.reviews = this.reviews.filter((r) => r.userId !== userId);
+    this.questions = this.questions.filter((q) => q.askerId !== userId);
+    this.lists = this.lists.filter((l) => l.creatorId !== userId);
+    this.persistAndNotify('users', this.users);
+  }
+
+  public adminDeleteReview(reviewId: string) {
+    this.verifyAdmin();
+    this.reviews = this.reviews.filter((r) => r.id !== reviewId);
+    this.persistAndNotify('reviews', this.reviews);
+  }
+
+  public adminDeleteQuestion(questionId: string) {
+    this.verifyAdmin();
+    this.questions = this.questions.filter((q) => q.id !== questionId);
+    this.persistAndNotify('questions', this.questions);
+  }
+
+  public adminDeleteCuratedList(listId: string) {
+    this.verifyAdmin();
+    this.lists = this.lists.filter((l) => l.id !== listId);
+    this.persistAndNotify('lists', this.lists);
+  }
+
+  public adminUpdateUserRole(userId: string, newRole: UserRole) {
+    this.verifyAdmin();
+    const target = this.users.find((u) => u.id === userId);
+    if (!target) return;
+    target.role = newRole;
+    target.isAuthor = newRole === 'author' || newRole === 'admin';
+    this.persistAndNotify('users', this.users);
+  }
+
+  // Clean reset to Mason Carter only
+  public resetToCleanState() {
+    this.users = [...INITIAL_AUTHORS];
+    this.books = [];
+    this.reviews = [];
+    this.questions = [];
+    this.shelves = [];
+    this.lists = [];
     this.currentUserId = 'mason-carter';
     this.persistAndNotify('reset', true);
   }

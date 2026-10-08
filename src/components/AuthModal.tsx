@@ -37,7 +37,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onRegisterUser,
   onGoogleLoginSuccess,
 }) => {
-  const [step, setStep] = useState<'sign-in' | 'onboarding' | 'personas'>('sign-in');
+  const [step, setStep] = useState<'sign-in' | 'onboarding'>('sign-in');
   const [googleLoading, setGoogleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -193,7 +193,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
 
             {/* Google Sign-In Button */}
-            <div>
+            <div className="space-y-3">
               <button
                 onClick={handleGoogleSignInClick}
                 disabled={googleLoading}
@@ -222,68 +222,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   {googleLoading ? 'Connecting with Google...' : 'Continue with Google'}
                 </span>
               </button>
-              <p className="mt-2 text-[11px] text-[#8C7E70] text-center">
-                New accounts automatically choose between Author or Reader on next screen.
-              </p>
-            </div>
 
-            {/* Quick Personas Switcher for Testing / Demo */}
-            <div className="pt-4 border-t border-[#DDD5C5]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-semibold text-[#8C7E70] uppercase tracking-wider">
-                  Or Test Existing Personas
-                </span>
-                <button
-                  onClick={() => setStep('personas')}
-                  className="text-xs text-[#8C5D17] hover:underline"
-                >
-                  View All ({allUsers.length})
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                {/* Mason Carter */}
-                <button
-                  onClick={() => {
-                    onSelectUser('mason-carter');
-                    onClose();
-                  }}
-                  className="p-2.5 rounded-lg border border-[#E5DEC9] bg-[#FAF8F5] text-left hover:bg-white flex items-center gap-2"
-                >
-                  <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"
-                    alt="Mason Carter"
-                    className="w-7 h-7 rounded-full object-cover"
-                  />
-                  <div className="min-w-0">
-                    <span className="block text-xs font-bold text-[#2C2621] truncate">
-                      Mason Carter
-                    </span>
-                    <span className="block text-[10px] text-[#8C5D17]">Author</span>
-                  </div>
-                </button>
-
-                {/* Clara Oswald (Reader) */}
-                <button
-                  onClick={() => {
-                    onSelectUser('reader-clara');
-                    onClose();
-                  }}
-                  className="p-2.5 rounded-lg border border-[#E5DEC9] bg-[#FAF8F5] text-left hover:bg-white flex items-center gap-2"
-                >
-                  <img
-                    src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80"
-                    alt="Clara"
-                    className="w-7 h-7 rounded-full object-cover"
-                  />
-                  <div className="min-w-0">
-                    <span className="block text-xs font-bold text-[#2C2621] truncate">
-                      Clara Oswald
-                    </span>
-                    <span className="block text-[10px] text-[#5C4F42]">Reader</span>
-                  </div>
-                </button>
-              </div>
+              {/* Direct Quick Login for Admin / Mason Carter */}
+              <button
+                onClick={() => {
+                  onSelectUser('mason-carter');
+                  onClose();
+                }}
+                className="w-full flex items-center justify-between rounded-xl border border-[#D5B876] bg-[#F9F4E8] py-2.5 px-3.5 text-xs text-[#5C3F0F] hover:bg-[#F2E8D2] transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Feather className="w-3.5 h-3.5 text-[#B2741E]" />
+                  <span className="font-semibold">Sign In as Mason Carter (Admin)</span>
+                </div>
+                <span className="text-[10px] font-mono text-[#8C5D17]">mushahidsyed1994@gmail.com</span>
+              </button>
             </div>
           </div>
         )}
@@ -463,68 +416,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </button>
             </div>
           </form>
-        )}
-
-        {/* STEP 3: PERSONAS BROWSER */}
-        {step === 'personas' && (
-          <div className="space-y-4 text-xs">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif text-lg font-bold text-[#2C2621]">
-                Available Demo Personas
-              </h2>
-              <button
-                onClick={() => setStep('sign-in')}
-                className="text-xs text-[#8C5D17] hover:underline"
-              >
-                ← Back
-              </button>
-            </div>
-
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {allUsers.map((u) => {
-                const isSelected = currentUser?.id === u.id;
-                return (
-                  <div
-                    key={u.id}
-                    onClick={() => {
-                      onSelectUser(u.id);
-                      onClose();
-                    }}
-                    className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${
-                      isSelected
-                        ? 'border-[#B2741E] bg-[#F7F3EA] ring-1 ring-[#B2741E]'
-                        : 'border-[#E5DEC9] bg-[#FAF8F5] hover:bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={u.avatarUrl}
-                        alt={u.name}
-                        className="w-9 h-9 rounded-full object-cover border border-[#D5C9B3]"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-xs text-[#2C2621] truncate">
-                            {u.name}
-                          </span>
-                          {u.isMasonCarter && (
-                            <span className="text-[10px] text-[#8C5D17] bg-[#D99B3B]/20 px-1.5 py-0.2 rounded-xs font-semibold">
-                              Mason Carter
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[11px] text-[#7A6F64] block capitalize">
-                          {u.role === 'author' ? '✍️ Author' : '📖 Reader'}
-                          {u.penName && ` · Pen: ${u.penName}`}
-                        </span>
-                      </div>
-                    </div>
-                    {isSelected && <Check className="w-4 h-4 text-[#B2741E]" />}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         )}
       </div>
     </div>

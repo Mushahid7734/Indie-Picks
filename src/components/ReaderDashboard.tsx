@@ -11,7 +11,11 @@ import {
   Heart,
   Share2,
   Check,
+  Clock,
+  Sparkles,
+  Users,
 } from 'lucide-react';
+import { ReadingProgressBar } from './ReadingProgressBar';
 
 interface ReaderDashboardProps {
   currentUser: User;
@@ -19,11 +23,14 @@ interface ReaderDashboardProps {
   shelves: ShelfItem[];
   reviews: Review[];
   curatedLists: CuratedList[];
+  allUsers?: User[];
   onSelectBook: (book: Book) => void;
   onSelectAuthor: (authorId: string) => void;
   onShelfChange: (bookId: string, status: ShelfStatus | 'remove') => void;
   onCreateCuratedList: (title: string, description: string, bookIds: string[]) => void;
   onUpdateProfile: (userId: string, data: Partial<User>) => void;
+  onUpdateProgress?: (bookId: string, page: number, status: string) => void;
+  onToggleFollowUser?: (targetUserId: string) => void;
 }
 
 export const ReaderDashboard: React.FC<ReaderDashboardProps> = ({
@@ -32,11 +39,14 @@ export const ReaderDashboard: React.FC<ReaderDashboardProps> = ({
   shelves,
   reviews,
   curatedLists,
+  allUsers = [],
   onSelectBook,
   onSelectAuthor,
   onShelfChange,
   onCreateCuratedList,
   onUpdateProfile,
+  onUpdateProgress,
+  onToggleFollowUser,
 }) => {
   const [activeTab, setActiveTab] = useState<'shelves' | 'my-lists' | 'new-list'>('shelves');
   const [shelfFilter, setShelfFilter] = useState<ShelfStatus>('want_to_read');
@@ -94,6 +104,15 @@ export const ReaderDashboard: React.FC<ReaderDashboardProps> = ({
               <p className="text-xs text-[#7A6F64] mt-0.5">
                 {userShelves.length} books shelved · {myCuratedLists.length} curated lists created
               </p>
+              <div className="mt-2 flex items-center gap-3 text-xs text-[#5C4F42]">
+                <span className="font-semibold text-[#8C5D17]">
+                  {currentUser.followerCount || 0} Followers
+                </span>
+                <span className="text-[#C5BBA9]">·</span>
+                <span>
+                  {(currentUser.followingUserIds || []).length} Following
+                </span>
+              </div>
             </div>
           </div>
 
@@ -191,6 +210,44 @@ export const ReaderDashboard: React.FC<ReaderDashboardProps> = ({
               <p className="text-sm text-[#6B5E51]">
                 No books currently in this shelf. Browse the catalogue or Explore tab to add indie books.
               </p>
+            </div>
+          ) : shelfFilter === 'reading' ? (
+            /* CURRENTLY READING VIEW: Cards with Reading Progress Bars (Page & 200-word status) */
+            <div className="space-y-6">
+              <div className="rounded-xl bg-[#EFE8D8] p-4 text-xs text-[#5C4F42] flex items-center justify-between">
+                <span className="font-semibold text-[#2C2621]">
+                  Active Reading Progress: {shelfBooks.length} / 3 books allowed
+                </span>
+                <span className="text-[11px] text-[#7A6F64]">
+                  Update your current page & status notes anytime.
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {shelfBooks.map((book) => {
+                  const item = userShelves.find((s) => s.bookId === book.id && s.status === 'reading');
+                  return (
+                    <div key={book.id} className="space-y-3">
+                      <BookCard
+                        book={book}
+                        reviews={reviews}
+                        shelves={shelves}
+                        currentUserId={currentUser.id}
+                        onSelectBook={onSelectBook}
+                        onSelectAuthor={onSelectAuthor}
+                        onShelfChange={onShelfChange}
+                      />
+                      <ReadingProgressBar
+                        book={book}
+                        shelfItem={item}
+                        currentUser={currentUser}
+                        onUpdateProgress={onUpdateProgress}
+                        onOpenBook={onSelectBook}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">

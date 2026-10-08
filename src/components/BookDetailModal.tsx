@@ -15,7 +15,9 @@ import {
   Layers,
   HelpCircle,
   Sparkles,
+  Clock,
 } from 'lucide-react';
+import { ReadingProgressBar } from './ReadingProgressBar';
 
 interface BookDetailModalProps {
   book: Book;
@@ -28,6 +30,7 @@ interface BookDetailModalProps {
   onShelfChange: (bookId: string, status: ShelfStatus | 'remove') => void;
   onAddReview: (bookId: string, rating: number, comment: string) => void;
   onAskQuestion: (authorId: string, questionText: string, bookId?: string) => void;
+  onUpdateProgress?: (bookId: string, page: number, status: string) => void;
 }
 
 export const BookDetailModal: React.FC<BookDetailModalProps> = ({
@@ -41,6 +44,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
   onShelfChange,
   onAddReview,
   onAskQuestion,
+  onUpdateProgress,
 }) => {
   const [activeTab, setActiveTab] = useState<'reviews' | 'qa'>('reviews');
   const [rating, setRating] = useState(5);
@@ -173,6 +177,19 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                 >
                   Remove from my shelf
                 </button>
+              )}
+
+              {/* Live Reading Progress Tracker (page progress bar & 200 words status) */}
+              {(userShelf?.status === 'reading' || userShelf?.progressPage !== undefined) && (
+                <div className="mt-4 pt-3 border-t border-[#DDD5C5]">
+                  <ReadingProgressBar
+                    book={book}
+                    shelfItem={userShelf}
+                    currentUser={currentUser}
+                    onUpdateProgress={onUpdateProgress}
+                    compact={true}
+                  />
+                </div>
               )}
             </div>
 
