@@ -1,0 +1,7 @@
+{
+  "name": "Indie Picks",
+  "description": "A free literary discovery sanctuary for indie authors and readers with book shelves, community Q&A, custom lists, and automated picks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

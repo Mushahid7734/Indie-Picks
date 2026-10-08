@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered Indie Author or Avid Reader profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["author", "reader"] },
+        "avatarUrl": { "type": "string" },
+        "bio": { "type": "string", "maxLength": 1000 },
+        "penName": { "type": "string" },
+        "websiteUrl": { "type": "string" },
+        "googleUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "email", "role", "bio", "createdAt"]
+    },
+    "Book": {
+      "title": "Book",
+      "description": "Published indie book with external image cover URL and redirect purchase link",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorAvatar": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "genre": { "type": "string" },
+        "tags": { "type": "array" },
+        "synopsis": { "type": "string" },
+        "coverUrl": { "type": "string" },
+        "purchaseUrl": { "type": "string" },
+        "purchaseRetailerName": { "type": "string" },
+        "pageCount": { "type": "number" },
+        "publishedYear": { "type": "number" },
+        "viewsCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "authorId", "authorName", "title", "genre", "synopsis", "coverUrl", "purchaseUrl", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Reader book review with 1-5 star rating",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "bookId", "userId", "userName", "rating", "comment", "createdAt"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Reader question asked to an author and author reply",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "bookId": { "type": "string" },
+        "bookTitle": { "type": "string" },
+        "askerId": { "type": "string" },
+        "askerName": { "type": "string" },
+        "askerAvatar": { "type": "string" },
+        "questionText": { "type": "string" },
+        "answerText": { "type": "string" },
+        "answeredAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "authorId", "askerId", "askerName", "questionText", "createdAt"]
+    },
+    "CuratedList": {
+      "title": "CuratedList",
+      "description": "Reader-curated book list with community upvotes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "creatorAvatar": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "bookIds": { "type": "array" },
+        "likesCount": { "type": "number" },
+        "likedByUserIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "creatorId", "creatorName", "title", "description", "bookIds", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/books/{bookId}": {
+      "schema": { "$ref": "#/entities/Book" },
+      "description": "Catalogue of published indie books"
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Book ratings and reviews"
+    },
+    "/questions/{questionId}": {
+      "schema": { "$ref": "#/entities/Question" },
+      "description": "Reader inquiries and author replies"
+    },
+    "/curatedLists/{listId}": {
+      "schema": { "$ref": "#/entities/CuratedList" },
+      "description": "Reader created themed book lists"
+    }
+  }
+}
